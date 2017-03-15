@@ -1,0 +1,110 @@
+version: '2'
+services:
+  redis:
+    image: redis
+    command: redis-server --appendonly yes
+    hostname: redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - /data
+  rabbitmq:
+    image: thethingsnetwork/rabbitmq
+    hostname: rabbitmq
+    ports:
+      - "1883:1883"
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - /var/lib/rabbitmq
+  discovery:
+    image: thethingsnetwork/ttn:latest
+    command: discovery --config /etc/ttn/discovery/ttn.yml
+    depends_on:
+      - redis
+    networks:
+      default:
+       aliases:
+        - discovery.local.thethings.network
+    ports:
+      - "1900:1900"
+      - "8080:8080"
+    volumes:
+      - "./discovery:/etc/ttn/discovery"
+  router:
+    image: thethingsnetwork/ttn:latest
+    command: router --config /etc/ttn/router/ttn.yml
+    depends_on:
+      - discovery
+    networks:
+     default:
+      aliases:
+       - router.local.thethings.network
+    ports:
+      - "1901:1901"
+    volumes:
+      - "./router:/etc:ttn/router"
+  broker:
+    image: thethingsnetwork/ttn:latest
+    command: broker --config /etc/ttn/broker/ttn.yml
+    depends_on:
+      - discovery
+      - networkserver
+    networks:
+     default:
+      aliases:
+       - broker.local.thethings.network
+    ports:
+      - "1902:1902"
+    volumes:
+      - "./broker:/etc/ttn/broker"
+  networkserver:
+    image: thethingsnetwork/ttn:latest
+    depends_on:
+      - redis
+    environment:
+      - TERM
+      - TTN_DISCOVERY_ADDRESS=discovery:1900
+      - TTN_NETWORKSERVER_REDIS_ADDRESS=redis:6379
+    ports:
+      - "1903:1903"
+    volumes:
+      - "./.env/:/root/.env/"
+  handler:
+    image: thethingsnetwork/ttn
+    hostname: handler
+    working_dir: /root
+    command: handler --config ./.env/handler/dev.yml
+    depends_on:
+      - discovery
+      - redis
+      - rabbitmq
+    environment:
+      - TERM
+      - TTN_DISCOVERY_ADDRESS=discovery:1900
+      - TTN_HANDLER_SERVER_ADDRESS_ANNOUNCE=handler
+      - TTN_HANDLER_REDIS_ADDRESS=redis:6379
+      - TTN_HANDLER_MQTT_ADDRESS=rabbitmq:1883
+      - TTN_HANDLER_AMQP_ADDRESS=rabbitmq:5672
+    ports:
+      - "1904:1904"
+      - "8084:8084"
+    volumes:
+      - "./.env/:/root/.env/"
+  bridge:
+    image: thethingsnetwork/lora-gateway-bridge
+    hostname: bridge
+    ports:
+      - "1700:1700/udp"
+    restart: always
+    depends_on: [ router ]
+    environment:
+      UDP_BIND: ":1700"
+      TTN_DISCOVERY_SERVER: discovery:1900
+      TTN_ROUTER: dev
+      # The following environment variables make that communication for gateway
+      # "0102030405060708" is forwarded as authenticated communication for
+      # gateway "dev"
+      TTN_GATEWAY_EUI: 0102030405060708
+      TTN_GATEWAY_ID: dev
+      TTN_GATEWAY_TOKEN: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ0dG4tYWNjb3VudC12MiIsInN1YiI6ImRldiIsInR5cGUiOiJnYXRld2F5IiwiaWF0IjoxNDgyNDIxMTEyfQ.obhobeREK9bOpi-YO5lZ8rpW4CkXZUSrRBRIjbFThhvAsj_IjkFmCovIVLsGlaDVEKciZmXmWnY-6ZEgUEu6H6_GG4AD6HNHXnT0o0XSPgf5_Bc6dpzuI5FCEpcELihpBMaW3vPUt29NecLo4LvZGAuOllUYKHsZi34GYnR6PFlOgi40drN_iU_8aMCxFxm6ki83QlcyHEmDAh5GAGIym0qnUDh5_L1VE_upmoR72j8_l5lSuUA2_w8CH5_Z9CrXlTKQ2XQXsQXprkhbmOKKC8rfbTjRsB_nxObu0qcTWLH9tMd4KGFkJ20mdMw38fg2Vt7eLrkU1R1kl6a65eo6LZi0JvRSsboVZFWLwI02Azkwsm903K5n1r25Wq2oiwPJpNq5vsYLdYlb-WdAPsEDnfQGLPaqxd5we8tDcHsF4C1JHTwLsKy2Sqj8WNVmLgXiFER0DNfISDgS5SYdOxd9dUf5lTlIYdJU6aG1yYLSEhq80QOcdhCqNMVu1uRIucn_BhHbKo_LCMmD7TGppaXcQ2tCL3qHQaW8GCoun_UPo4C67LIMYUMfwd_h6CaykzlZvDlLa64ZiQ3XPmMcT_gVT7MJS2jGPbtJmcLHAVa5NZLv2d6WZfutPAocl3bYrY-sQmaSwJrzakIb2D-DNsg0qBJAZcm2o021By8U4bKAAFQ

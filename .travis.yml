@@ -1,0 +1,25 @@
+language: go
+
+sudo: required
+
+services:
+    - docker
+
+go:
+    - 1.7
+
+install:
+    - make deps
+    - make cover-deps
+
+before_script:
+    - docker run -d -p 127.0.0.1:6379:6379 redis
+    - docker run -d -p 127.0.0.1:5672:5672 -p 127.0.0.1:1883:1883 -p 127.0.0.1:8883:8883 -v $(pwd)/.env/mqtt:/var/lib/rabbitmq/tls -e RABBITMQ_SSL_CERTFILE=/var/lib/rabbitmq/tls/cert.pem -e RABBITMQ_SSL_KEYFILE=/var/lib/rabbitmq/tls/key.pem -e RABBITMQ_SSL_CACERTFILE=/var/lib/rabbitmq/tls/cacert.pem thethingsnetwork/rabbitmq 
+
+script:
+    - make test
+    - make fmt
+    - make vet
+
+after_success:
+    - make coveralls

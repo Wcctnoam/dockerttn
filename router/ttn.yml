@@ -1,0 +1,12 @@
+id: mynetwork-router
+tls: true
+key-dir: /etc/ttn/router/
+auth-servers:
+ ttn-account-v2: "https://account.thethingsnetwork.org"
+
+discovery-address: "discovery.local.thethings.network:1900"
+auth-token: eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE0ODUzMzQ2MDUsImlzcyI6ImxvY2FsIiwibmJmIjoxNDg1MzM0NjA1LCJzdWIiOiJteW5ldHdvcmstcm91dGVyIiwidHlwZSI6InJvdXRlciJ9.2O7FzeaSmTHFFVfpv15R9c_csg6x5vuJ9b6QYEKQtsPKpLfH_opbOO4JVx7HqAGO4693o4VjVm5gSqII3Yl6WA
+
+router:
+ server-address-announce: router.local.thethings.network
+ skip-verify-gateway-token: true

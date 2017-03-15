@@ -1,0 +1,111 @@
+version: '2'
+services:
+  redis:
+    image: redis
+    command: redis-server --appendonly yes
+    hostname: redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - /data
+  rabbitmq:
+    image: thethingsnetwork/rabbitmq
+    hostname: rabbitmq
+    environment:
+      - RABBITMQ_SSL_CERTFILE=/var/lib/rabbitmq/tls/cert.pem
+      - RABBITMQ_SSL_KEYFILE=/var/lib/rabbitmq/tls/key.pem
+      - RABBITMQ_SSL_CACERTFILE=/var/lib/rabbitmq/tls/cacert.pem
+    ports:
+      - "1883:1883"
+      - "8883:8883"
+      - "5671:5671"
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - "./.env/mqtt:/var/lib/rabbitmq/tls"
+      - "/etc/rabbitmq:/etc/rabbitmq"
+      - /var/lib/rabbitmq
+  discovery:
+    image: thethingsnetwork/ttn:latest
+    hostname: discovery
+    command: discovery --config /etc/ttn/discovery/ttn.yml
+    depends_on:
+      - redis
+    networks:
+     default:
+      aliases:
+       - discovery.local.thethings.network
+    ports:
+      - "1900:1900"
+      - "8081:8081"
+    volumes:
+      - "./discovery:/etc/ttn/discovery"
+  router:
+    image: thethingsnetwork/ttn:latest
+    command: router --config /etc/ttn/router/ttn.yml
+    depends_on:
+      - discovery
+    networks:
+     default:
+      aliases:
+       - router.local.thethings.network
+    ports:
+      - "1901:1901"
+    volumes:
+      - "./router:/etc/ttn/router"
+  broker:
+    image: thethingsnetwork/ttn:latest
+    command: broker --config /etc/ttn/broker/ttn.yml
+    depends_on:
+      - discovery
+      - networkserver
+    networks:
+     default:
+      aliases:
+       - broker.local.thethings.network
+    ports:
+      - "1902:1902"
+    volumes:
+      - "./broker:/etc/ttn/broker"
+  networkserver:
+    image: thethingsnetwork/ttn:latest
+    command: networkserver --config /etc/ttn/networkserver/ttn.yml
+    depends_on:
+      - redis
+    networks:
+     default:
+      aliases:
+       - networkserver.local.thethings.network
+    ports:
+      - "1903:1903"
+    volumes:
+      - "./networkserver:/etc/ttn/networkserver"
+  handler:
+    image: thethingsnetwork/ttn:latest
+    command: handler --config /etc/ttn/handler/ttn.yml
+    depends_on:
+      - discovery
+      - redis
+      - rabbitmq
+    networks:
+     default:
+      aliases:
+       - handler.local.thethings.network
+    ports:
+      - "1904:1904"
+      - "8084:8084"
+    volumes:
+      - "./handler:/etc/ttn/handler"
+  bridge:
+    image: thethingsnetwork/lora-gateway-bridge:latest
+    restart: always
+    depends_on:
+     - router
+    environment:
+      TTN_DISCOVERY_SERVER: discovery.local.thethings.network:1900
+      ROOT_CA_FILE: /etc/ttn/bridge/ca.cert
+      TTN_ROUTER: mynetwork-router
+    ports:
+     - "1700:1700/udp"
+    volumes:
+     - "./bridge:/etc/ttn/bridge"
